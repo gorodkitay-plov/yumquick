@@ -1,6 +1,7 @@
 package com.yumquick.common.config;
 
 import com.yumquick.security.filter.JwtAuthenticationFilter;
+import com.yumquick.security.filter.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -40,6 +42,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/menu/**").permitAll()
                         // Webhook от платёжных провайдеров — без JWT
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        // WebSocket
+                        .requestMatchers("/ws/**").permitAll()
                         // Swagger
                         .requestMatchers(
                                 "/swagger-ui/**",
@@ -51,8 +55,9 @@ public class SecurityConfig {
                         // Всё остальное требует авторизации
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                // RateLimitFilter перед JWT — блокируем до авторизации
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
