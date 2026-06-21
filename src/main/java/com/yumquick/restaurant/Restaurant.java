@@ -123,6 +123,7 @@ public class Restaurant {
     public void open() { this.open = true; }
     public void close() { this.open = false; }
     public void deactivate() { this.active = false; }
+    public void activate() { this.active = true; }
 
     public void updateRating(BigDecimal newRating, int newCount) {
         this.rating = newRating;

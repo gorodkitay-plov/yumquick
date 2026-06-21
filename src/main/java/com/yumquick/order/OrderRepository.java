@@ -35,4 +35,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     // Проверка ресторана + id
     Optional<Order> findByIdAndRestaurantId(UUID id, UUID restaurantId);
+
+    // Для Admin dashboard
+    long countByStatus(OrderStatus status);
+
+    @Query("SELECT SUM(o.total) FROM Order o WHERE o.status = :status")
+    java.math.BigDecimal sumTotalByStatus(OrderStatus status);
 }
