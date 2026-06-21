@@ -19,59 +19,60 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final TossPaymentClient tossClient;
 
     // ── Инициализация оплаты ──────────────────────────────
-    // Создаём запись Payment до того как пользователь платит.
-    // Генерируем idempotencyKey — фронт передаёт его провайдеру.
+    // Шаг 1: создаём запись Payment и возвращаем idempotencyKey.
+    // Фронт передаёт его Toss SDK как orderId при открытии формы оплаты.
 
     @Transactional
     public PaymentDto.PaymentInitResponse initPayment(UUID userId,
-                                                       PaymentDto.InitRequest req) {
+                                                      PaymentDto.InitRequest req) {
         Order order = orderRepository.findByIdAndUserId(req.getOrderId(), userId)
                 .orElseThrow(() -> AppException.notFound("Order not found"));
 
-        // Заказ должен быть в статусе PENDING
         if (order.getStatus() != OrderStatus.PENDING) {
             throw AppException.badRequest("Order is not awaiting payment");
         }
 
         // Если оплата уже была инициирована — возвращаем существующую
-        paymentRepository.findByOrderId(order.getId()).ifPresent(existing -> {
-            if (existing.getStatus() == PaymentStatus.SUCCESS) {
+        var existing = paymentRepository.findByOrderId(order.getId());
+        if (existing.isPresent()) {
+            Payment p = existing.get();
+            if (p.getStatus() == PaymentStatus.SUCCESS) {
                 throw AppException.conflict("Order already paid");
             }
-        });
+            // Возвращаем существующий ключ (идемпотентность)
+            return new PaymentDto.PaymentInitResponse(
+                    p.getId(), p.getIdempotencyKey(),
+                    p.getAmount(), p.getProvider()
+            );
+        }
 
         String idempotencyKey = UUID.randomUUID().toString();
 
         Payment payment = Payment.create(
-                order,
-                req.getProvider(),
-                order.getTotal(),
-                idempotencyKey
+                order, req.getProvider(),
+                order.getTotal(), idempotencyKey
         );
         paymentRepository.save(payment);
 
         return new PaymentDto.PaymentInitResponse(
-                payment.getId(),
-                idempotencyKey,
-                payment.getAmount(),
-                payment.getProvider()
+                payment.getId(), idempotencyKey,
+                payment.getAmount(), payment.getProvider()
         );
     }
 
     // ── Подтверждение оплаты ──────────────────────────────
-    // Вызывается после того как пользователь оплатил на стороне провайдера.
-    // Проверяем idempotencyKey и сумму — не доверяем фронту.
+    // Шаг 2: после оплаты Toss возвращает paymentKey на фронт.
+    // Фронт передаёт его нам, мы подтверждаем через Toss API.
 
     @Transactional
     public PaymentDto.PaymentResponse confirmPayment(UUID userId,
-                                                      PaymentDto.ConfirmRequest req) {
-        // Ищем по idempotencyKey — защита от двойного подтверждения
+                                                     PaymentDto.ConfirmRequest req) {
         Payment payment = paymentRepository.findByIdempotencyKey(req.getIdempotencyKey())
                 .orElseThrow(() -> AppException.notFound("Payment not found"));
 
-        // Проверяем что это заказ текущего пользователя
         if (!payment.getOrder().getUser().getId().equals(userId)) {
             throw AppException.forbidden("Not your payment");
         }
@@ -89,21 +90,39 @@ public class PaymentService {
             throw AppException.badRequest("Payment amount mismatch");
         }
 
-        // Подтверждаем оплату
-        payment.succeed(req.getProviderTxId());
+        // Подтверждаем через Toss API
+        try {
+            TossPaymentResponse tossResponse = tossClient.confirmPayment(
+                    req.getProviderTxId(),
+                    req.getIdempotencyKey(),
+                    req.getAmount()
+            );
 
-        // Переводим заказ в CONFIRMED
-        payment.getOrder().confirm();
-
-        log.info("Payment confirmed: orderId={}, provider={}, txId={}",
-                payment.getOrder().getId(), payment.getProvider(), req.getProviderTxId());
+            if (tossResponse.isSuccess()) {
+                payment.succeed(tossResponse.getPaymentKey());
+                payment.getOrder().confirm();
+                log.info("Payment confirmed via Toss: orderId={}, paymentKey={}",
+                        payment.getOrder().getId(), tossResponse.getPaymentKey());
+            } else {
+                payment.fail(tossResponse.getMessage());
+                log.warn("Payment failed via Toss: orderId={}, reason={}",
+                        payment.getOrder().getId(), tossResponse.getMessage());
+                throw AppException.badRequest("Payment failed: " + tossResponse.getMessage());
+            }
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            payment.fail(e.getMessage());
+            log.error("Toss API error for order {}", payment.getOrder().getId(), e);
+            throw AppException.badRequest("Payment processing error");
+        }
 
         return PaymentDto.PaymentResponse.from(payment);
     }
 
-    // ── Webhook от провайдера ─────────────────────────────
-    // Провайдер сам уведомляет нас об изменении статуса платежа.
-    // Важно: проверять подпись webhook (реализуется отдельно для каждого провайдера).
+    // ── Webhook от Toss ───────────────────────────────────
+    // Toss сам уведомляет нас об изменении статуса.
+    // Используется как резервный механизм если фронт не вызвал confirm.
 
     @Transactional
     public void handleWebhook(PaymentDto.WebhookRequest req) {
@@ -116,23 +135,23 @@ public class PaymentService {
         // Уже финальный статус — игнорируем повторный webhook
         if (payment.getStatus() == PaymentStatus.SUCCESS
                 || payment.getStatus() == PaymentStatus.REFUNDED) {
-            log.info("Ignoring webhook for already finalized payment: {}", req.getProviderTxId());
+            log.info("Ignoring webhook for finalized payment: {}", req.getProviderTxId());
             return;
         }
 
         switch (req.getStatus().toUpperCase()) {
-            case "SUCCESS" -> {
+            case "DONE" -> {
                 payment.succeed(req.getProviderTxId());
                 payment.getOrder().confirm();
                 log.info("Webhook: payment succeeded for order {}",
                         payment.getOrder().getId());
             }
-            case "FAIL" -> {
+            case "ABORTED" -> {
                 payment.fail(req.getFailureReason());
                 log.warn("Webhook: payment failed for order {}, reason: {}",
                         payment.getOrder().getId(), req.getFailureReason());
             }
-            case "CANCEL" -> {
+            case "CANCELED" -> {
                 payment.cancel();
                 payment.getOrder().cancel();
                 log.info("Webhook: payment cancelled for order {}",
@@ -153,7 +172,16 @@ public class PaymentService {
             throw AppException.badRequest("Payment is not in SUCCESS status");
         }
 
-        // TODO: вызов API провайдера для возврата средств
+        // Вызываем Toss API для возврата
+        try {
+            tossClient.cancelPayment(
+                    payment.getProviderTxId(),
+                    req.getReason() != null ? req.getReason() : "관리자 환불"
+            );
+        } catch (Exception e) {
+            log.error("Toss refund error for order {}", req.getOrderId(), e);
+            throw AppException.badRequest("Refund processing error");
+        }
 
         payment.refund();
         payment.getOrder().cancel();
