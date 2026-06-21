@@ -12,18 +12,18 @@ import java.util.UUID;
 
 public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
 
-    // Owner의 레스토랑 목록
+    // Список ресторанов владельца
     List<Restaurant> findByOwnerIdAndActiveTrue(UUID ownerId);
 
     Optional<Restaurant> findByIdAndActiveTrue(UUID id);
 
-    // 검색
+    // Поиск
     Page<Restaurant> findByActiveTrueAndNameContainingIgnoreCase(String name, Pageable pageable);
 
-    // 오픈 중인 레스토랑
+    // Открытые рестораны
     Page<Restaurant> findByActiveTrueAndOpenTrue(Pageable pageable);
 
-    // 근처 레스토랑 (Haversine 공식)
+    // Ближайшие рестораны (формула Хаверсина)
     @Query(value = """
             SELECT r.* FROM restaurants r
             WHERE r.is_active = true
@@ -49,9 +49,9 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
                                 @Param("radiusKm") double radiusKm,
                                 @Param("limit") int limit);
 
-    // 인기 레스토랑 (평점 기준)
+    // Популярные рестораны (по рейтингу)
     Page<Restaurant> findByActiveTrueAndOpenTrueOrderByRatingDescRatingCountDesc(Pageable pageable);
 
-    // Owner + id 확인 (권한 검증용)
+    // Проверка владельца + id (для авторизации)
     Optional<Restaurant> findByIdAndOwnerId(UUID id, UUID ownerId);
 }

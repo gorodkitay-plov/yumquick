@@ -34,19 +34,21 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public
+                        // Публичные маршруты
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/restaurants/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/menu/**").permitAll()
+                        // Webhook от платёжных провайдеров — без JWT
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         // Swagger
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        // Admin only
+                        // Только Admin
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        // Everything else requires auth
+                        // Всё остальное требует авторизации
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter,
