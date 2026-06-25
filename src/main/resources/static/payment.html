@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>YumQuick Payment</title>
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; background: #FFF8F0; }
+    .header { text-align: center; padding: 24px 16px 16px; }
+    .logo { font-size: 40px; margin-bottom: 8px; }
+    .title { font-size: 18px; font-weight: 700; color: #1A1A1A; margin-bottom: 4px; }
+    .amount { font-size: 26px; font-weight: 800; color: #FF6B00; margin-bottom: 16px; }
+    #payment-method { margin: 0 16px; }
+    #agreement { margin: 0 16px; }
+    .pay-btn {
+      background: #FF6B00; color: white; border: none;
+      border-radius: 16px; padding: 16px; font-size: 16px;
+      font-weight: 700; cursor: pointer; width: calc(100% - 32px);
+      margin: 16px 16px 0; display: block;
+    }
+    .status { color: #888; font-size: 13px; margin: 12px 16px; text-align: center; }
+  </style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">🍔</div>
+  <div class="title" id="orderName">YumQuick Order</div>
+  <div class="amount" id="amountDisplay">₩0</div>
+</div>
+
+<div id="payment-method"></div>
+<div id="agreement"></div>
+<button class="pay-btn" id="pay-btn">Pay Now</button>
+<div class="status" id="status"></div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
+  const orderId = params.get('orderId');
+  const amount = parseInt(params.get('amount'));
+  const orderName = decodeURIComponent(params.get('orderName') || 'YumQuick Order');
+  const successUrl = decodeURIComponent(params.get('successUrl') || '');
+  const failUrl = decodeURIComponent(params.get('failUrl') || '');
+
+  document.getElementById('orderName').textContent = orderName;
+  document.getElementById('amountDisplay').textContent = '₩' + amount.toLocaleString();
+
+  async function main() {
+    const tossPayments = TossPayments(clientKey);
+    const widgets = tossPayments.widgets({ customerKey: TossPayments.ANONYMOUS });
+
+    await widgets.setAmount({ currency: 'KRW', value: amount });
+
+    await Promise.all([
+      widgets.renderPaymentMethods({
+        selector: '#payment-method',
+        variantKey: 'DEFAULT',
+      }),
+      widgets.renderAgreement({
+        selector: '#agreement',
+        variantKey: 'AGREEMENT',
+      }),
+    ]);
+
+    document.getElementById('pay-btn').addEventListener('click', async function () {
+      document.getElementById('status').textContent = 'Processing...';
+      try {
+        await widgets.requestPayment({
+          orderId,
+          orderName,
+          successUrl,
+          failUrl,
+          customerName: 'YumQuick User',
+        });
+      } catch (error) {
+        document.getElementById('status').textContent = error.message || 'Payment failed';
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', message: error.message }));
+        }
+      }
+    });
+  }
+
+  main().catch(function(e) {
+    document.getElementById('status').textContent = e.message || 'Init failed';
+  });
+</script>
+</body>
+</html>
