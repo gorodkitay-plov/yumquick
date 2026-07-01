@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -45,6 +47,7 @@ public class CouponService {
         BigDecimal discountAmount = coupon.calculateDiscount(req.getSubtotal(), BigDecimal.ZERO);
 
         return new CouponDto.ValidateResponse(
+                coupon.getId(),
                 coupon.getCode(),
                 coupon.getDiscountType(),
                 discountAmount,
@@ -111,6 +114,15 @@ public class CouponService {
         Coupon coupon = couponRepository.findById(couponId)
                 .orElseThrow(() -> AppException.notFound("Coupon not found"));
         coupon.deactivate();
+    }
+
+    public List<CouponDto.CouponResponse> getAvailable(UUID userId) {
+        return couponRepository
+                .findAvailable(LocalDateTime.now())
+                .stream()
+                .filter(c -> !couponUsageRepository.existsByCouponIdAndUserId(c.getId(), userId))
+                .map(CouponDto.CouponResponse::from)
+                .toList();
     }
 
     // ── Helpers ───────────────────────────────────────────

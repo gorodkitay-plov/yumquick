@@ -70,9 +70,10 @@ public class CouponDto {
     }
 
     public record ValidateResponse(
+            UUID couponId,
             String code,
             DiscountType discountType,
-            BigDecimal discountAmount,  // конкретная сумма скидки для этого заказа
+            BigDecimal discountAmount,
             String description
     ) {}
 }

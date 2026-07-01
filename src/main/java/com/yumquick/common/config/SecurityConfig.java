@@ -59,6 +59,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/restaurants/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/menu/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        .requestMatchers("/api/coupons").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/payment.html", "/payment/**", "/*.html", "/static/**").permitAll()
                         .requestMatchers(

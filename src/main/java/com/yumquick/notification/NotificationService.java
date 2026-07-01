@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.Message;
 
 import java.util.List;
 import java.util.UUID;
@@ -64,23 +66,18 @@ public class NotificationService {
 
         tokens.forEach(fcmToken -> {
             try {
-                // TODO: вызов Firebase Admin SDK
-                // FirebaseMessaging.getInstance().send(
-                //     Message.builder()
-                //         .setToken(fcmToken.getToken())
-                //         .setNotification(com.google.firebase.messaging.Notification.builder()
-                //             .setTitle(title)
-                //             .setBody(body)
-                //             .build())
-                //         .build()
-                // );
+                Message message = Message.builder()
+                        .setToken(fcmToken.getToken())
+                        .setNotification(com.google.firebase.messaging.Notification.builder()
+                                .setTitle(title)
+                                .setBody(body)
+                                .build())
+                        .build();
+                FirebaseMessaging.getInstance().send(message);
                 log.info("Push sent to token={}, title={}", fcmToken.getToken(), title);
             } catch (Exception e) {
                 log.error("Failed to send push to token={}", fcmToken.getToken(), e);
-                // Если токен невалиден — удаляем его
-                if (e.getMessage() != null && e.getMessage().contains("UNREGISTERED")) {
-                    fcmTokenRepository.deleteByToken(fcmToken.getToken());
-                }
+                fcmTokenRepository.delete(fcmToken);
             }
         });
     }

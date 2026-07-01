@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,6 +32,13 @@ public class CouponController {
             @AuthenticationPrincipal UUID userId,
             @Valid @RequestBody CouponDto.ValidateRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(couponService.validate(userId, request)));
+    }
+
+    @GetMapping("/api/coupons")
+    @Operation(summary = "Get available coupons")
+    public ResponseEntity<ApiResponse<List<CouponDto.CouponResponse>>> getAvailable(
+            @AuthenticationPrincipal UUID userId) {
+        return ResponseEntity.ok(ApiResponse.ok(couponService.getAvailable(userId)));
     }
 
     // ── Admin: управление купонами ────────────────────────
