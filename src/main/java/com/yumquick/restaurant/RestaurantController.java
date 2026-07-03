@@ -27,10 +27,10 @@ public class RestaurantController {
     // ── Public ────────────────────────────────────────────
 
     @GetMapping("/api/restaurants")
-    @Operation(summary = "List open restaurants")
     public ResponseEntity<ApiResponse<Page<RestaurantDto.RestaurantResponse>>> getAll(
+            @RequestParam(required = false) RestaurantCategory category,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(restaurantService.getAll(pageable)));
+        return ResponseEntity.ok(ApiResponse.ok(restaurantService.getAll(category, pageable)));
     }
 
     @GetMapping("/api/restaurants/search")

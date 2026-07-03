@@ -65,6 +65,10 @@ public class Restaurant {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category")
+    private RestaurantCategory category;
+
     @Column(nullable = false)
     private Double lat;
 

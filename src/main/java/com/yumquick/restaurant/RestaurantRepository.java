@@ -23,6 +23,9 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
     // Открытые рестораны
     Page<Restaurant> findByActiveTrueAndOpenTrue(Pageable pageable);
 
+    Page<Restaurant> findByActiveTrueAndOpenTrueAndCategory(RestaurantCategory category, Pageable pageable);
+
+
     // Ближайшие рестораны (формула Хаверсина)
     @Query(value = """
             SELECT r.* FROM restaurants r

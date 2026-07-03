@@ -9,7 +9,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,7 +23,11 @@ public class RestaurantService {
 
     // ── Public APIs ───────────────────────────────────────
 
-    public Page<RestaurantDto.RestaurantResponse> getAll(Pageable pageable) {
+    public Page<RestaurantDto.RestaurantResponse> getAll(RestaurantCategory category, Pageable pageable) {
+        if (category != null) {
+            return restaurantRepository.findByActiveTrueAndOpenTrueAndCategory(category, pageable)
+                    .map(RestaurantDto.RestaurantResponse::from);
+        }
         return restaurantRepository.findByActiveTrueAndOpenTrue(pageable)
                 .map(RestaurantDto.RestaurantResponse::from);
     }

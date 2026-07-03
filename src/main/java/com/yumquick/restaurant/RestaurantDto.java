@@ -85,6 +85,7 @@ public class RestaurantDto {
             BigDecimal minOrder,
             Integer estimatedDeliveryMinutes,
             boolean open,
+            RestaurantCategory category,
             Double lat,
             Double lng,
             String addressDetail,
@@ -97,7 +98,7 @@ public class RestaurantDto {
                     r.getRating().doubleValue(), r.getRatingCount(),
                     r.getDeliveryFee(), r.getMinOrder(),
                     r.getEstimatedDeliveryMinutes(),
-                    r.isOpen(), r.getLat(), r.getLng(), r.getAddressDetail(),
+                    r.isOpen(), r.getCategory(), r.getLat(), r.getLng(), r.getAddressDetail(),
                     hours.stream().map(HoursResponse::from).toList()
             );
         }
